@@ -1,7 +1,26 @@
+import os
 from setuptools import setup
+from subprocess import check_call
+import setuptools.command.build_ext
+import setuptools.command.build_py
+
+
+def build_nanomsg_lib():
+    check_call("bash build_nanomsg.sh", shell=True)
+
+class BuildPyCommand(setuptools.command.build_py.build_py):
+    def run(self):
+        build_nanomsg_lib()
+        super(BuildPyCommand, self).run()
+
+class BuildExtCommand(setuptools.command.build_ext.build_ext):
+    """Build nng library before anything else."""
+    def run(self):
+        build_nanomsg_lib()
+        super(BuildExtCommand, self).run()
 
 setup(
-    name='nnpy',
+    name='nnpy-bundle',
     version='1.4.2',
     url='https://github.com/nanomsg/nnpy',
     license='MIT',
