@@ -22,7 +22,7 @@ class BuildExtCommand(setuptools.command.build_ext.build_ext):
 setup(
     name='nnpy-bundle',
     version='1.4.2',
-    url='https://github.com/nanomsg/nnpy',
+    url='https://github.com/calio/nnpy',
     license='MIT',
     author='Dirkjan Ochtman',
     author_email='dirkjan@ochtman.nl',

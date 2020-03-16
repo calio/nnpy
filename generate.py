@@ -13,7 +13,8 @@ SITE_CFG = 'site.cfg'
 DEFAULT_INCLUDE_DIRS = ['./nanomsg/build/dest/include/nanomsg']
 DEFAULT_HOST_LIBRARY = 'nanomsg'
 NANOMSG_STATIC_LIB = "libnanomsg.a"
-NANOMSG_DYNAMIC_LIB = "nanomsg/build/dest/lib/libnanomsg.so"
+NANOMSG_DYNAMIC_LIBS = ["nanomsg/build/dest/lib/libnanomsg.so",
+                       "nanomsg/build/dest/lib64/libnanomsg.so"]
 
 BLOCKS = {'{': '}', '(': ')'}
 DEFINITIONS = '''
@@ -27,14 +28,21 @@ NANOMSG_TAG="1.1.5"
 lib="nanomsg"
 
 
-def get_nanomsg_source():
-    if not os.path.exists(lib):
-        check_call("git clone https://github.com/nanomsg/nanomsg.git", shell=True)
-    check_call("git checkout {}".format(NANOMSG_TAG), shell=True, cwd=lib)
+def get_nanomsg_source(cwd):
+    wd = os.path.join(cwd, lib)
+    if os.path.exists(wd):
+        check_call("rm -rf nanomsg", shell=True, cwd=cwd)
+    if os.path.exists(NANOMSG_STATIC_LIB):
+        check_call("rm -rf {}".format(NANOMSG_STATIC_LIB), shell=True, cwd=cwd)
+
+    check_call("git clone https://github.com/nanomsg/nanomsg.git", shell=True, cwd=cwd)
+    check_call("git checkout {}".format(NANOMSG_TAG), shell=True, cwd=wd)
 
 
-def build_nanomsg_dynamic_lib():
-    build_dir = os.path.join(lib, "build")
+def build_nanomsg_dynamic_lib(cwd):
+    build_dir = os.path.join(cwd, lib, "build")
+
+    #build_dir = os.path.join(lib, "build")
     if os.path.exists(build_dir):
         check_call("rm -r {}".format(build_dir), shell=True)
 
@@ -43,8 +51,9 @@ def build_nanomsg_dynamic_lib():
     check_call('FLAGS=-fPIC cmake -G "Unix Makefiles" "-DCMAKE_INSTALL_PREFIX=dest" ..', shell=True, cwd=build_dir)
     check_call("make -j8 install", shell=True, cwd=build_dir)
 
-def build_nanomsg_static_lib():
-    build_dir = os.path.join(lib, "build")
+def build_nanomsg_static_lib(cwd):
+    build_dir = os.path.join(cwd, lib, "build")
+    #build_dir = os.path.join(lib, "build")
     if os.path.exists(build_dir):
         check_call("rm -r {}".format(build_dir), shell=True)
 
@@ -85,9 +94,22 @@ def functions(hfiles):
 
     return ''.join(ln[10:] if ln.startswith('NN_') else ln for ln in lines)
 
-def symbols(ffi, host_library):
+def symbols(ffi, host_library, cwd):
+    if isinstance(host_library, str):
+        libpath = os.path.join(cwd, host_library)
 
-    nanomsg = ffi.dlopen(host_library)
+        nanomsg = ffi.dlopen(libpath)
+    else:
+        for path in host_library:
+            libpath = os.path.join(cwd, path)
+            try:
+                nanomsg = ffi.dlopen(libpath)
+            except OSError:
+                continue
+            break
+        else:
+            raise RuntimeError("no libnanomsg.so found, searched: {}".format(host_library))
+
     lines = []
     for i in range(1024):
 
@@ -102,16 +124,23 @@ def symbols(ffi, host_library):
 
     return '\n'.join(lines) + '\n'
 
+def find_lib(libpath):
+    if os.path.exists(libpath):
+        return libpath
+    head, tail = os.path.split(libpath)
+
 def create_module():
+    cwd = os.getcwd()
+
     ffi = FFI()
 
-    get_nanomsg_source()
-    build_nanomsg_static_lib()
+    get_nanomsg_source(cwd)
+    build_nanomsg_static_lib(cwd)
 
-    build_nanomsg_dynamic_lib()
+    build_nanomsg_dynamic_lib(cwd)
 
     #host_library = DEFAULT_HOST_LIBRARY
-    host_library = NANOMSG_DYNAMIC_LIB
+    host_library = NANOMSG_DYNAMIC_LIBS
 
     set_source_args = {
         'include_dirs': DEFAULT_INCLUDE_DIRS
@@ -153,7 +182,7 @@ def create_module():
                    libraries = ['pthread', 'anl'],
                    **set_source_args)
 
-    library_symbols = symbols(ffi, host_library)
+    library_symbols = symbols(ffi, host_library, cwd)
 
     with open('nnpy/constants.py', 'w') as f:
         f.write(library_symbols)
