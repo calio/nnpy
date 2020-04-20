@@ -1,5 +1,6 @@
 from cffi import FFI
 import os
+import sys
 from subprocess import check_call
 
 try:
@@ -13,8 +14,11 @@ SITE_CFG = 'site.cfg'
 DEFAULT_INCLUDE_DIRS = ['./nanomsg/build/dest/include/nanomsg']
 DEFAULT_HOST_LIBRARY = 'nanomsg'
 NANOMSG_STATIC_LIB = "libnanomsg.a"
-NANOMSG_DYNAMIC_LIBS = ["nanomsg/build/dest/lib/libnanomsg.so",
-                       "nanomsg/build/dest/lib64/libnanomsg.so"]
+NANOMSG_DYNAMIC_LIBS = [
+    "nanomsg/build/dest/lib/libnanomsg.so",
+    "nanomsg/build/dest/lib64/libnanomsg.so",
+    "nanomsg/build/dest/lib/libnanomsg.dylib",
+]
 
 BLOCKS = {'{': '}', '(': ')'}
 DEFINITIONS = '''
@@ -174,12 +178,15 @@ def create_module():
 
     # Build FFI module and write out the constants
 
+    libraries = ["pthread", "anl"]
+    if sys.platform == "darwin":
+        libraries.remove("anl")
 
     ffi.cdef(DEFINITIONS)
     ffi.cdef(functions(hfiles))
     ffi.set_source('_nnpy', '\n'.join('#include <%s>' % fn for fn in hfiles),
                    extra_objects=[NANOMSG_STATIC_LIB],
-                   libraries = ['pthread', 'anl'],
+                   libraries=libraries,
                    **set_source_args)
 
     library_symbols = symbols(ffi, host_library, cwd)
