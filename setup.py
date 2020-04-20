@@ -21,7 +21,7 @@ class BuildExtCommand(setuptools.command.build_ext.build_ext):
 
 setup(
     name='nnpy-bundle',
-    version='1.4.2.post0',
+    version='1.4.2.post1',
     url='https://github.com/calio/nnpy',
     license='MIT',
     author='Dirkjan Ochtman',
